@@ -1,0 +1,39 @@
+{
+  "name": "chat-backend",
+  "version": "1.0.0",
+  "description": "Chat backend: users and chats in PostgreSQL, messages and read receipts in Firebase Firestore",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "migrate": "tsx scripts/migrate.ts",
+    "emulator": "firebase emulators:start --only firestore --project demo-chat",
+    "test": "firebase emulators:exec --only firestore --project demo-chat \"vitest run\"",
+    "format": "prettier --write ."
+  },
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0",
+    "firebase-admin": "^14.5.0",
+    "pg": "^8.23.1",
+    "pino": "^10.4.0",
+    "pino-http": "^11.0.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
+    "@types/supertest": "^7.2.1",
+    "firebase-tools": "^14.27.0",
+    "pino-pretty": "^13.2.0",
+    "prettier": "^3.9.10",
+    "supertest": "^7.3.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}
