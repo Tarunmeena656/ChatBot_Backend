@@ -4,8 +4,7 @@ import { AppError } from './errors';
 
 type Source = 'body' | 'query' | 'params';
 
-// validates one part of the request. body is replaced with the parsed value,
-// query goes to res.locals.query because express 5 makes req.query read only
+// express 5 makes req.query read only, so the parsed query goes to res.locals.query
 export function validate(schema: ZodType, source: Source = 'body') {
   return (req: Request, res: Response, next: NextFunction) => {
     const result = schema.safeParse(req[source]);

@@ -23,7 +23,6 @@ describe('group chats', () => {
     expect(chat.body).toMatchObject({ type: 'group', name: 'Backend team', createdBy: a.id });
     expect(chat.body.memberIds.sort()).toEqual([a.id, b.id, c.id].sort());
 
-    // a second group with the same people is a different chat, unlike 1:1
     const again = await api()
       .post('/chat/group')
       .send({ name: 'Backend team', createdBy: a.id, memberIds: [b.id] });

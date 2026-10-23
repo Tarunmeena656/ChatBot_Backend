@@ -22,7 +22,6 @@ export async function getUser(id: string): Promise<User> {
   return user;
 }
 
-// every id must belong to a real user, otherwise says which ones are unknown
 export async function assertUsersExist(ids: string[]) {
   const rows = await query<{ id: string }>('select id from users where id = any($1::uuid[])', [ids]);
   const found = new Set(rows.map((row) => row.id));

@@ -88,7 +88,6 @@ describe('messages', () => {
     expect(seen.status).toBe(200);
     expect(seen.body).toMatchObject({ chatId, userId: b.id, lastSeenMessageId: second.id });
 
-    // an older pointer coming in late must not undo the newer one
     const stale = await api().post(`/chat/${chatId}/lastseen`).send({ userId: b.id, messageId: first.id });
     expect(stale.body.lastSeenMessageId).toBe(second.id);
 

@@ -3,8 +3,6 @@ import { ChatIdParam, MessageParams } from '../schemas/common';
 import * as chats from '../services/chats';
 import * as messages from '../services/messages';
 
-// membership is checked against postgres first, then the message work happens in firestore
-
 export async function send(req: Request<ChatIdParam>, res: Response) {
   const { chatId } = req.params;
   const { senderId, text } = req.body;

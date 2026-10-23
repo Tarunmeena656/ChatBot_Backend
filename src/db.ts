@@ -3,7 +3,6 @@ import { config } from './config';
 
 export const pool = new Pool({ connectionString: config.databaseUrl, max: 10 });
 
-// something that can run a query: the pool itself or a client inside a transaction
 export type Db = Pool | PoolClient;
 
 export async function query<T extends QueryResultRow>(
@@ -24,7 +23,7 @@ export async function queryOne<T extends QueryResultRow>(
   return rows[0];
 }
 
-// runs fn inside a transaction and rolls back if it throws
+// rolls back if fn throws
 export async function transaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   try {

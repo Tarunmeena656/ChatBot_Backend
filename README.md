@@ -39,8 +39,8 @@ Other scripts: `npm run build` / `npm start` (compiled), `npm run typecheck`, `n
 npm test
 ```
 
-This boots the Firestore emulator, applies the schema to the `chat_test` database and runs 19 tests covering
-every endpoint, including the concurrent create-chat case. `.env.test` points at the docker Postgres; to use
+This boots the Firestore emulator, applies the schema to the `chat_test` database and runs 27 tests covering
+every endpoint, the Firestore document layout and the concurrent create-chat case. `.env.test` points at the docker Postgres; to use
 another one run `DATABASE_URL=postgresql://... npm test`.
 
 There is also a Postman collection in `postman/` with the whole flow (setup users, required APIs, bonus
@@ -135,7 +135,7 @@ chats/{chatId}/messages/{messageId}   chatId, senderId, text, createdAt, editedA
 chats/{chatId}/members/{userId}       lastSeenMessageId, lastSeenMessageAt, updatedAt
 ```
 
-## Decisions worth knowing
+## Design notes
 
 - **Postgres is the source of truth for who is in a chat.** Every message endpoint first checks the chat
   exists and the user is a member (one query), then talks to Firestore. Firestore never decides access.
@@ -149,7 +149,7 @@ chats/{chatId}/members/{userId}       lastSeenMessageId, lastSeenMessageAt, upda
   a late request pointing at an older message is ignored and the current pointer is returned.
 - **Delete is a soft delete.** The message keeps its place (and its id, so last seen pointers stay valid) but
   loses its text and gets `deleted: true`. Deleted messages cannot be edited again.
-- **No authentication**, as in the brief: the acting user is passed as `userId` / `senderId`. In a real
+- **No authentication yet.** The acting user is passed as `userId` / `senderId` in the body. In a real
   deployment this would come from a verified token instead of the body.
 - **Layout:** `routes` (paths + validation) → `controllers` (read the request, send the response) →
   `services` (`chats.ts`, `users.ts` talk to Postgres, `messages.ts` talks to Firestore).

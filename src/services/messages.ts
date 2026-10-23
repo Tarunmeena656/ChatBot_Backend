@@ -88,7 +88,7 @@ export async function listMessages(chatId: string, limit: number, before?: Date)
     q = q.where('createdAt', '<', Timestamp.fromDate(before));
   }
   const snap = await q.get();
-  // newest first so the limit keeps the latest messages, then flipped back into reading order
+  // newest first so limit keeps the latest ones, then back into reading order
   return snap.docs.map((d) => toMessage(d.id, d.data() as MessageDoc)).reverse();
 }
 
@@ -105,7 +105,6 @@ export async function updateLastSeen(chatId: string, userId: string, messageId: 
   const ref = members(chatId).doc(userId);
   const current = (await ref.get()).data() as LastSeenDoc | undefined;
   if (current && current.lastSeenMessageAt.toMillis() > message.createdAt.toMillis()) {
-    // the user has already seen something newer, keep that
     return toLastSeen(chatId, userId, current);
   }
   const next: LastSeenDoc = {
@@ -139,7 +138,7 @@ export async function editMessage(chatId: string, messageId: string, senderId: s
   return toMessage(messageId, { ...data, text, editedAt });
 }
 
-// soft delete: the message keeps its place (ordering and last seen pointers still work) but loses its text
+// soft delete so ordering and last seen pointers keep working
 export async function deleteMessage(chatId: string, messageId: string, senderId: string) {
   const { ref, data } = await getMessageDoc(chatId, messageId);
   assertCanChange(data, senderId);
