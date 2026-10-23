@@ -8,7 +8,6 @@ export const api = () => request(app);
 
 export async function resetAll() {
   await pool.query('truncate table users, chats cascade');
-  // the emulator has a rest endpoint that wipes every document
   const { emulatorHost, projectId } = config.firebase;
   await fetch(`http://${emulatorHost}/emulator/v1/projects/${projectId}/databases/(default)/documents`, {
     method: 'DELETE',
@@ -16,12 +15,17 @@ export async function resetAll() {
 }
 
 export async function createUser(name: string) {
-  const res = await api().post('/user').send({ name });
-  return res.body as { id: string; name: string };
+  const { rows } = await pool.query('insert into users (name) values ($1) returning id, name', [name]);
+  return rows[0] as { id: string; name: string };
 }
 
 export async function createChat(userAId: string, userBId: string) {
   const res = await api().post('/chat/create').send({ userAId, userBId });
+  return res.body.chatId as string;
+}
+
+export async function createGroup(name: string, createdBy: string, memberIds: string[]) {
+  const res = await api().post('/chat/group').send({ name, createdBy, memberIds });
   return res.body.chatId as string;
 }
 

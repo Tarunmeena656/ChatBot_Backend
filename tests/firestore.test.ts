@@ -1,7 +1,7 @@
 import { Timestamp } from 'firebase-admin/firestore';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { firestore } from '../src/firebase';
-import { api, createChat, createUser, resetAll, sendMessage } from './helpers';
+import { api, createChat, createGroup, createUser, resetAll, sendMessage } from './helpers';
 
 beforeEach(resetAll);
 
@@ -30,13 +30,30 @@ describe('firestore documents', () => {
   it('stores the last seen pointer under chats/{chatId}/members/{userId}', async () => {
     const { a, b, chatId } = await pair();
     const message = await sendMessage(chatId, a.id, 'seen');
-    await api().post(`/chat/${chatId}/lastseen`).send({ userId: b.id, messageId: message.id });
+    const res = await api().post(`/chat/${chatId}/lastseen`).send({ userId: b.id, messageId: message.id });
 
     const snap = await firestore.doc(`chats/${chatId}/members/${b.id}`).get();
     const data = snap.data()!;
     expect(data.lastSeenMessageId).toBe(message.id);
-    expect(data.lastSeenMessageAt.toDate().toISOString()).toBe(message.createdAt);
     expect(data.updatedAt).toBeInstanceOf(Timestamp);
+    expect(data.updatedAt.toDate().toISOString()).toBe(res.body.updatedAt);
+  });
+
+  it('keeps one last seen pointer per member of a group', async () => {
+    const a = await createUser('Aditi');
+    const b = await createUser('Vikram');
+    const c = await createUser('Neha');
+    const chatId = await createGroup('Team', a.id, [b.id, c.id]);
+    const first = await sendMessage(chatId, a.id, 'one');
+    const second = await sendMessage(chatId, b.id, 'two');
+
+    await api().post(`/chat/${chatId}/lastseen`).send({ userId: a.id, messageId: second.id });
+    await api().post(`/chat/${chatId}/lastseen`).send({ userId: b.id, messageId: second.id });
+    await api().post(`/chat/${chatId}/lastseen`).send({ userId: c.id, messageId: first.id });
+
+    const snap = await firestore.collection(`chats/${chatId}/members`).get();
+    const byUser = Object.fromEntries(snap.docs.map((d) => [d.id, d.data().lastSeenMessageId]));
+    expect(byUser).toEqual({ [a.id]: second.id, [b.id]: second.id, [c.id]: first.id });
   });
 
   it('keeps chats separate from each other', async () => {
@@ -55,12 +72,10 @@ describe('firestore documents', () => {
     expect(seen.status).toBe(404);
   });
 
-  it('returns an empty list for a new chat and when paging past the first message', async () => {
-    const { a, chatId } = await pair();
-    expect((await api().get(`/chat/${chatId}/messages`)).body.messages).toEqual([]);
-
-    const first = await sendMessage(chatId, a.id, 'first');
-    const res = await api().get(`/chat/${chatId}/messages?before=${first.createdAt}`);
+  it('returns an empty list for a chat without messages', async () => {
+    const { chatId } = await pair();
+    const res = await api().get(`/chat/${chatId}/messages`);
+    expect(res.status).toBe(200);
     expect(res.body.messages).toEqual([]);
   });
 
@@ -68,10 +83,7 @@ describe('firestore documents', () => {
     const a = await createUser('Aditi');
     const b = await createUser('Vikram');
     const c = await createUser('Neha');
-    const group = await api()
-      .post('/chat/group')
-      .send({ name: 'Team', createdBy: a.id, memberIds: [b.id, c.id] });
-    const chatId = group.body.chatId as string;
+    const chatId = await createGroup('Team', a.id, [b.id, c.id]);
     const message = await sendMessage(chatId, a.id, 'read by all');
 
     const firstRead = await api().post(`/chat/${chatId}/message/${message.id}/read`).send({ userId: b.id });
@@ -98,29 +110,6 @@ describe('firestore documents', () => {
     expect(deleted.body.createdAt).toBe(message.createdAt);
     expect(deleted.body.editedAt).toBe(edited.body.editedAt);
     expect(Object.keys(deleted.body.readBy)).toEqual([b.id]);
-  });
-
-  it('lists the last seen pointer of every member in a group', async () => {
-    const a = await createUser('Aditi');
-    const b = await createUser('Vikram');
-    const c = await createUser('Neha');
-    const group = await api()
-      .post('/chat/group')
-      .send({ name: 'Team', createdBy: a.id, memberIds: [b.id, c.id] });
-    const chatId = group.body.chatId as string;
-    const first = await sendMessage(chatId, a.id, 'one');
-    const second = await sendMessage(chatId, b.id, 'two');
-
-    await api().post(`/chat/${chatId}/lastseen`).send({ userId: a.id, messageId: second.id });
-    await api().post(`/chat/${chatId}/lastseen`).send({ userId: b.id, messageId: second.id });
-    await api().post(`/chat/${chatId}/lastseen`).send({ userId: c.id, messageId: first.id });
-
-    const res = await api().get(`/chat/${chatId}/lastseen`);
-    expect(res.status).toBe(200);
-    const byUser = Object.fromEntries(
-      res.body.members.map((m: { userId: string; lastSeenMessageId: string }) => [m.userId, m.lastSeenMessageId]),
-    );
-    expect(byUser).toEqual({ [a.id]: second.id, [b.id]: second.id, [c.id]: first.id });
   });
 
   it('starts every test with an empty firestore', async () => {

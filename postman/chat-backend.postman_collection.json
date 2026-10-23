@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Chat Backend",
-    "description": "Users and chats in PostgreSQL, messages / read receipts / last seen in Firestore. Run the folders top to bottom: ids are stored in collection variables as you go.",
+    "description": "Run `npm run seed` and paste the three user ids into the userA, userB and userC variables, then run the folders top to bottom. chatId, messageId and groupId are filled in as you go.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -36,158 +36,7 @@
   ],
   "item": [
     {
-      "name": "0. Setup",
-      "item": [
-        {
-          "name": "Health",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/health",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "health"
-              ]
-            },
-            "description": ""
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 200', () => pm.response.to.have.status(200));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Create user A",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/user",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "user"
-              ]
-            },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Aditi Rao\"\n}"
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 201', () => pm.response.to.have.status(201));",
-                  "pm.collectionVariables.set('userA', pm.response.json().id);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Create user B",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/user",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "user"
-              ]
-            },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Vikram Mehta\"\n}"
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 201', () => pm.response.to.have.status(201));",
-                  "pm.collectionVariables.set('userB', pm.response.json().id);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Create user C",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/user",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "user"
-              ]
-            },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Neha Singh\"\n}"
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 201', () => pm.response.to.have.status(201));",
-                  "pm.collectionVariables.set('userC', pm.response.json().id);"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "1. Required APIs",
+      "name": "1. Required",
       "item": [
         {
           "name": "Create or get chat",
@@ -209,7 +58,7 @@
                 "create"
               ]
             },
-            "description": "1:1 chat. The same two users always get the same chatId back.",
+            "description": "",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"userAId\": \"{{userA}}\",\n  \"userBId\": \"{{userB}}\"\n}"
@@ -222,7 +71,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('201 on create, 200 when it already exists', () => pm.expect([200, 201]).to.include(pm.response.code));",
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
                   "pm.collectionVariables.set('chatId', pm.response.json().chatId);"
                 ]
               }
@@ -328,7 +177,7 @@
                 "messages?limit=50"
               ]
             },
-            "description": "Oldest first. Add &before=<createdAt> to page further back."
+            "description": ""
           },
           "response": [],
           "event": [
@@ -411,37 +260,6 @@
               "mode": "raw",
               "raw": "{\n  \"userId\": \"{{userB}}\",\n  \"messageId\": \"{{messageId}}\"\n}"
             }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 200', () => pm.response.to.have.status(200));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get last seen (all members)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/chat/{{chatId}}/lastseen",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "chat",
-                "{{chatId}}",
-                "lastseen"
-              ]
-            },
-            "description": ""
           },
           "response": [],
           "event": [
@@ -558,75 +376,6 @@
               "mode": "raw",
               "raw": "{\n  \"userIds\": [\n    \"{{userC}}\"\n  ]\n}"
             }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 200', () => pm.response.to.have.status(200));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Rename group",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/chat/{{groupId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "chat",
-                "{{groupId}}"
-              ]
-            },
-            "description": "",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Backend team (core)\"\n}"
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 200', () => pm.response.to.have.status(200));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Get chat",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/chat/{{groupId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "chat",
-                "{{groupId}}"
-              ]
-            },
-            "description": ""
           },
           "response": [],
           "event": [
@@ -782,7 +531,7 @@
                 "{{messageId}}"
               ]
             },
-            "description": "Soft delete: the message keeps its place in the list with deleted=true and empty text.",
+            "description": "",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"senderId\": \"{{userA}}\"\n}"

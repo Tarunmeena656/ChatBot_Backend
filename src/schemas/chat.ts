@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { uuid } from './common';
 
-const groupName = z.string().trim().min(1).max(100);
 const userIds = z.array(uuid).min(1).max(100);
 
 export const createChatBody = z
@@ -12,11 +11,9 @@ export const createChatBody = z
   });
 
 export const createGroupBody = z.object({
-  name: groupName,
+  name: z.string().trim().min(1).max(100),
   createdBy: uuid,
   memberIds: userIds,
 });
-
-export const renameGroupBody = z.object({ name: groupName });
 
 export const addMembersBody = z.object({ userIds });

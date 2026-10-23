@@ -6,13 +6,11 @@ import { config } from './config';
 function options(): AppOptions {
   const { projectId, emulatorHost, serviceAccount } = config.firebase;
   if (emulatorHost) {
-    // the emulator does not check credentials
     return { projectId };
   }
   if (serviceAccount) {
     return { projectId, credential: cert(JSON.parse(readFileSync(serviceAccount, 'utf8'))) };
   }
-  // falls back to GOOGLE_APPLICATION_CREDENTIALS / the environment the app runs in
   return { projectId, credential: applicationDefault() };
 }
 

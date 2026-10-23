@@ -6,13 +6,12 @@ export type Chat = {
   id: string;
   type: 'direct' | 'group';
   name: string | null;
-  createdBy: string | null;
   memberIds: string[];
   createdAt: Date;
 };
 
 const chatSelect = `
-  select c.id, c.type, c.name, c.created_by as "createdBy", c.created_at as "createdAt",
+  select c.id, c.type, c.name, c.created_at as "createdAt",
          coalesce(array_agg(m.user_id order by m.joined_at) filter (where m.user_id is not null), '{}') as "memberIds"
   from chats c
   left join chat_members m on m.chat_id = c.id`;
@@ -42,7 +41,6 @@ async function getGroupChat(chatId: string): Promise<Chat> {
 }
 
 function insertMembers(chatId: string, userIds: string[], db: Db) {
-  // one row per user: ($1, $2), ($1, $3), ...
   const values = userIds.map((_, i) => `($1, $${i + 2})`).join(', ');
   return query(
     `insert into chat_members (chat_id, user_id) values ${values} on conflict do nothing`,
@@ -51,53 +49,45 @@ function insertMembers(chatId: string, userIds: string[], db: Db) {
   );
 }
 
-// 1:1 chat between two users. the same pair always gets the same chat back.
-export async function getOrCreateDirectChat(userAId: string, userBId: string) {
+export async function getOrCreateDirectChat(userAId: string, userBId: string): Promise<string> {
   await assertUsersExist([userAId, userBId]);
   const key = [userAId, userBId].sort().join(':');
 
   const existing = await queryOne<{ id: string }>('select id from chats where direct_key = $1', [key]);
   if (existing) {
-    return { chatId: existing.id, created: false };
+    return existing.id;
   }
 
   return transaction(async (client) => {
     const inserted = await queryOne<{ id: string }>(
-      `insert into chats (type, direct_key, created_by) values ('direct', $1, $2)
+      `insert into chats (type, direct_key) values ('direct', $1)
        on conflict (direct_key) do nothing
        returning id`,
-      [key, userAId],
+      [key],
       client,
     );
     if (!inserted) {
-      // another request created the same chat between our select and insert
       const chat = await queryOne<{ id: string }>('select id from chats where direct_key = $1', [key], client);
-      return { chatId: chat!.id, created: false };
+      return chat!.id;
     }
     await insertMembers(inserted.id, [userAId, userBId], client);
-    return { chatId: inserted.id, created: true };
+    return inserted.id;
   });
 }
 
-export async function createGroupChat(name: string, createdBy: string, memberIds: string[]) {
+export async function createGroupChat(name: string, createdBy: string, memberIds: string[]): Promise<string> {
   const ids = [...new Set([createdBy, ...memberIds])];
   await assertUsersExist(ids);
 
   return transaction(async (client) => {
     const chat = await queryOne<{ id: string }>(
-      `insert into chats (type, name, created_by) values ('group', $1, $2) returning id`,
-      [name, createdBy],
+      `insert into chats (type, name) values ('group', $1) returning id`,
+      [name],
       client,
     );
     await insertMembers(chat!.id, ids, client);
-    return { chatId: chat!.id };
+    return chat!.id;
   });
-}
-
-export async function renameGroup(chatId: string, name: string): Promise<Chat> {
-  await getGroupChat(chatId);
-  await query('update chats set name = $2 where id = $1', [chatId, name]);
-  return getChat(chatId);
 }
 
 export async function addMembers(chatId: string, userIds: string[]): Promise<Chat> {

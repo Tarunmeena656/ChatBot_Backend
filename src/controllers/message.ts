@@ -12,9 +12,8 @@ export async function send(req: Request<ChatIdParam>, res: Response) {
 
 export async function list(req: Request<ChatIdParam>, res: Response) {
   const { chatId } = req.params;
-  const { limit, before } = res.locals.query;
   await chats.getChat(chatId);
-  res.json({ messages: await messages.listMessages(chatId, limit, before) });
+  res.json({ messages: await messages.listMessages(chatId, res.locals.query.limit) });
 }
 
 export async function markRead(req: Request<MessageParams>, res: Response) {
@@ -29,12 +28,6 @@ export async function updateLastSeen(req: Request<ChatIdParam>, res: Response) {
   const { userId, messageId } = req.body;
   await chats.getChatForMember(chatId, userId);
   res.json(await messages.updateLastSeen(chatId, userId, messageId));
-}
-
-export async function listLastSeen(req: Request<ChatIdParam>, res: Response) {
-  const { chatId } = req.params;
-  await chats.getChat(chatId);
-  res.json({ members: await messages.listLastSeen(chatId) });
 }
 
 export async function edit(req: Request<MessageParams>, res: Response) {

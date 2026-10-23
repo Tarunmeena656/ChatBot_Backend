@@ -2,7 +2,6 @@ import { FieldPath, Timestamp } from 'firebase-admin/firestore';
 import { firestore } from '../firebase';
 import { AppError } from '../middleware/errors';
 
-// chats/{chatId}/messages/{messageId}
 type MessageDoc = {
   chatId: string;
   senderId: string;
@@ -10,15 +9,11 @@ type MessageDoc = {
   createdAt: Timestamp;
   editedAt: Timestamp | null;
   deleted: boolean;
-  // userId -> when that user read the message
   readBy: Record<string, Timestamp>;
 };
 
-// chats/{chatId}/members/{userId}
 type LastSeenDoc = {
   lastSeenMessageId: string;
-  // createdAt of that message, kept so the pointer never moves backwards
-  lastSeenMessageAt: Timestamp;
   updatedAt: Timestamp;
 };
 
@@ -55,10 +50,6 @@ function toMessage(id: string, doc: MessageDoc): Message {
   };
 }
 
-function toLastSeen(chatId: string, userId: string, doc: LastSeenDoc) {
-  return { chatId, userId, lastSeenMessageId: doc.lastSeenMessageId, updatedAt: iso(doc.updatedAt) };
-}
-
 async function getMessageDoc(chatId: string, messageId: string) {
   const snap = await messages(chatId).doc(messageId).get();
   if (!snap.exists) {
@@ -82,43 +73,23 @@ export async function sendMessage(chatId: string, senderId: string, text: string
   return toMessage(ref.id, doc);
 }
 
-export async function listMessages(chatId: string, limit: number, before?: Date): Promise<Message[]> {
-  let q = messages(chatId).orderBy('createdAt', 'desc').limit(limit);
-  if (before) {
-    q = q.where('createdAt', '<', Timestamp.fromDate(before));
-  }
-  const snap = await q.get();
-  // newest first so limit keeps the latest ones, then back into reading order
+export async function listMessages(chatId: string, limit: number): Promise<Message[]> {
+  const snap = await messages(chatId).orderBy('createdAt', 'desc').limit(limit).get();
   return snap.docs.map((d) => toMessage(d.id, d.data() as MessageDoc)).reverse();
 }
 
 export async function markRead(chatId: string, messageId: string, userId: string): Promise<Message> {
   const { ref, data } = await getMessageDoc(chatId, messageId);
   const readAt = Timestamp.now();
-  // FieldPath because user ids contain dashes, which a dotted string path would reject
   await ref.update(new FieldPath('readBy', userId), readAt);
   return toMessage(messageId, { ...data, readBy: { ...data.readBy, [userId]: readAt } });
 }
 
 export async function updateLastSeen(chatId: string, userId: string, messageId: string) {
-  const { data: message } = await getMessageDoc(chatId, messageId);
-  const ref = members(chatId).doc(userId);
-  const current = (await ref.get()).data() as LastSeenDoc | undefined;
-  if (current && current.lastSeenMessageAt.toMillis() > message.createdAt.toMillis()) {
-    return toLastSeen(chatId, userId, current);
-  }
-  const next: LastSeenDoc = {
-    lastSeenMessageId: messageId,
-    lastSeenMessageAt: message.createdAt,
-    updatedAt: Timestamp.now(),
-  };
-  await ref.set(next);
-  return toLastSeen(chatId, userId, next);
-}
-
-export async function listLastSeen(chatId: string) {
-  const snap = await members(chatId).get();
-  return snap.docs.map((d) => toLastSeen(chatId, d.id, d.data() as LastSeenDoc));
+  await getMessageDoc(chatId, messageId);
+  const doc: LastSeenDoc = { lastSeenMessageId: messageId, updatedAt: Timestamp.now() };
+  await members(chatId).doc(userId).set(doc);
+  return { chatId, userId, lastSeenMessageId: messageId, updatedAt: iso(doc.updatedAt) };
 }
 
 function assertCanChange(message: MessageDoc, senderId: string) {
@@ -138,7 +109,6 @@ export async function editMessage(chatId: string, messageId: string, senderId: s
   return toMessage(messageId, { ...data, text, editedAt });
 }
 
-// soft delete so ordering and last seen pointers keep working
 export async function deleteMessage(chatId: string, messageId: string, senderId: string) {
   const { ref, data } = await getMessageDoc(chatId, messageId);
   assertCanChange(data, senderId);

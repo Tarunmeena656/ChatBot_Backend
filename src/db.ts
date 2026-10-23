@@ -23,7 +23,6 @@ export async function queryOne<T extends QueryResultRow>(
   return rows[0];
 }
 
-// rolls back if fn throws
 export async function transaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   try {

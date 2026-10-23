@@ -24,15 +24,10 @@ export function errorHandler(err: unknown, req: Request, res: Response, next: Ne
     res.status(400).json({ error: { code: 'INVALID_JSON', message: 'Request body is not valid JSON' } });
     return;
   }
-  const pg = err as { code?: string };
-  if (pg.code === '23503') {
-    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Referenced user or chat does not exist' } });
-    return;
-  }
-  if (pg.code === '22P02') {
+  if ((err as { code?: string }).code === '22P02') {
     res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'Malformed id or value' } });
     return;
   }
-  req.log.error({ err }, 'unhandled error');
+  console.error(err);
   res.status(500).json({ error: { code: 'INTERNAL', message: 'Something went wrong' } });
 }

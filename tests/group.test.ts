@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { api, createChat, createUser, resetAll, sendMessage } from './helpers';
+import { api, createChat, createGroup, createUser, resetAll, sendMessage } from './helpers';
 
 beforeEach(resetAll);
 
@@ -10,6 +10,13 @@ async function team() {
   return { a, b, c };
 }
 
+type ChatRow = { id: string; type: string; name: string | null; memberIds: string[] };
+
+async function chatsOf(userId: string): Promise<ChatRow[]> {
+  const res = await api().get(`/user/${userId}/chats`);
+  return res.body.chats;
+}
+
 describe('group chats', () => {
   it('creates a group with the creator as a member', async () => {
     const { a, b, c } = await team();
@@ -18,10 +25,11 @@ describe('group chats', () => {
       .post('/chat/group')
       .send({ name: 'Backend team', createdBy: a.id, memberIds: [b.id, c.id, b.id] });
     expect(res.status).toBe(201);
+    expect(res.body.chatId).toBeTruthy();
 
-    const chat = await api().get(`/chat/${res.body.chatId}`);
-    expect(chat.body).toMatchObject({ type: 'group', name: 'Backend team', createdBy: a.id });
-    expect(chat.body.memberIds.sort()).toEqual([a.id, b.id, c.id].sort());
+    const [chat] = await chatsOf(c.id);
+    expect(chat).toMatchObject({ id: res.body.chatId, type: 'group', name: 'Backend team' });
+    expect(chat.memberIds.sort()).toEqual([a.id, b.id, c.id].sort());
 
     const again = await api()
       .post('/chat/group')
@@ -29,35 +37,30 @@ describe('group chats', () => {
     expect(again.body.chatId).not.toBe(res.body.chatId);
   });
 
-  it('adds and removes members and renames the group', async () => {
+  it('adds and removes members', async () => {
     const { a, b, c } = await team();
-    const { body } = await api()
-      .post('/chat/group')
-      .send({ name: 'Standup', createdBy: a.id, memberIds: [b.id] });
+    const chatId = await createGroup('Standup', a.id, [b.id]);
 
     const added = await api()
-      .post(`/chat/${body.chatId}/members`)
+      .post(`/chat/${chatId}/members`)
       .send({ userIds: [c.id, b.id] });
     expect(added.status).toBe(200);
     expect(added.body.memberIds.sort()).toEqual([a.id, b.id, c.id].sort());
 
-    const removed = await api().delete(`/chat/${body.chatId}/members/${b.id}`);
+    const removed = await api().delete(`/chat/${chatId}/members/${b.id}`);
+    expect(removed.status).toBe(200);
     expect(removed.body.memberIds.sort()).toEqual([a.id, c.id].sort());
-    expect((await api().delete(`/chat/${body.chatId}/members/${b.id}`)).status).toBe(404);
-
-    const renamed = await api().patch(`/chat/${body.chatId}`).send({ name: 'Daily standup' });
-    expect(renamed.body.name).toBe('Daily standup');
-
-    const chats = await api().get(`/user/${b.id}/chats`);
-    expect(chats.body.chats).toHaveLength(0);
+    expect((await api().delete(`/chat/${chatId}/members/${b.id}`)).status).toBe(404);
+    expect(await chatsOf(b.id)).toEqual([]);
 
     const ghost = await api()
-      .post(`/chat/${body.chatId}/members`)
+      .post(`/chat/${chatId}/members`)
       .send({ userIds: ['00000000-0000-4000-8000-000000000000'] });
     expect(ghost.status).toBe(404);
+    expect(ghost.body.error.code).toBe('USER_NOT_FOUND');
   });
 
-  it('does not let 1:1 chats be changed like groups', async () => {
+  it('does not change members of a 1:1 chat', async () => {
     const { a, b, c } = await team();
     const chatId = await createChat(a.id, b.id);
 
@@ -66,23 +69,25 @@ describe('group chats', () => {
       .send({ userIds: [c.id] });
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('NOT_A_GROUP');
-    expect((await api().patch(`/chat/${chatId}`).send({ name: 'x' })).status).toBe(400);
+    expect((await api().delete(`/chat/${chatId}/members/${b.id}`)).status).toBe(400);
   });
 
   it('lets every member of a group send and read', async () => {
     const { a, b, c } = await team();
-    const { body } = await api()
-      .post('/chat/group')
-      .send({ name: 'Standup', createdBy: a.id, memberIds: [b.id, c.id] });
+    const chatId = await createGroup('Standup', a.id, [b.id, c.id]);
 
-    const message = await sendMessage(body.chatId, c.id, 'morning');
-    const read = await api().post(`/chat/${body.chatId}/message/${message.id}/read`).send({ userId: b.id });
+    const message = await sendMessage(chatId, c.id, 'morning');
+    const read = await api().post(`/chat/${chatId}/message/${message.id}/read`).send({ userId: b.id });
     expect(read.status).toBe(200);
     expect(read.body.readBy[b.id]).toBeTruthy();
+
+    const outsider = await createUser('Ravi');
+    const res = await api().post(`/chat/${chatId}/message/send`).send({ senderId: outsider.id, text: 'hi' });
+    expect(res.status).toBe(403);
   });
 });
 
-describe('edit and delete', () => {
+describe('message edit and delete', () => {
   it('lets only the sender edit a message', async () => {
     const a = await createUser('Aditi');
     const b = await createUser('Vikram');
